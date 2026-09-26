@@ -3,7 +3,7 @@ name: Build Jarvis Installer
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch: {}
+  workflow_dispatch:
 
 jobs:
   build:
@@ -16,8 +16,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-          cache: 'pip'
+          python-version: "3.11"
 
       - name: Install Python dependencies
         shell: pwsh
@@ -34,9 +33,8 @@ jobs:
             $iconFlag = @("--icon=icon.ico")
           }
 
-          pyinstaller --clean --noconfirm --onefile --windowed --name Jarvis @iconFlag `
+          pyinstaller --clean --onefile --name Jarvis @iconFlag `
             --hidden-import=comtypes.stream `
-            --hidden-import=comtypes.client `
             --hidden-import=pycaw.pycaw `
             --hidden-import=speech_recognition `
             --collect-all pyttsx3 `
@@ -44,7 +42,7 @@ jobs:
             --hidden-import=playsound `
             jarvis_system_agent_fixed.py
 
-          if (!(Test-Path "dist\Jarvis.exe")) {
+          if (-not (Test-Path "dist\Jarvis.exe")) {
             throw "PyInstaller не создал dist\Jarvis.exe"
           }
 
@@ -53,54 +51,70 @@ jobs:
         run: |
           choco install innosetup -y --no-progress
 
+      - name: Create installer script
+        shell: pwsh
+        run: |
+          @'
+          [Setup]
+          AppId={{8B4B8B4D-6C7E-4E1A-9B7B-9E8E2D2A7A11}
+          AppName=JARVIS
+          AppVersion=1.0.0
+          AppPublisher=JARVIS
+          DefaultDirName={autopf}\JARVIS
+          DefaultGroupName=JARVIS
+          OutputDir=Output
+          OutputBaseFilename=JarvisSetup
+          Compression=lzma
+          SolidCompression=yes
+          ArchitecturesInstallIn64BitMode=x64compatible
+          UninstallDisplayName=JARVIS
+
+          [Files]
+          Source="dist\Jarvis.exe"; DestDir="{app}"; Flags: ignoreversion
+
+          [Icons]
+          Name="{autoprograms}\JARVIS"; Filename="{app}\Jarvis.exe"
+          Name="{autodesktop}\JARVIS"; Filename="{app}\Jarvis.exe"
+
+          [Run]
+          Filename="{app}\Jarvis.exe"; Description="Запустить JARVIS"; Flags="nowait postinstall skipifsilent"
+          '@ | Set-Content -Path "setup.iss" -Encoding UTF8
+
+          if (-not (Test-Path "setup.iss")) {
+            throw "Не удалось создать setup.iss"
+          }
+
       - name: Find Inno Setup compiler
         id: inno
         shell: pwsh
         run: |
           $candidates = @(
-            "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
-            "C:\Program Files\Inno Setup 6\ISCC.exe",
-            "C:\Program Files (x86)\Inno Setup 7\ISCC.exe",
-            "C:\Program Files\Inno Setup 7\ISCC.exe"
+            "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
+            "${env:ProgramFiles}\Inno Setup 6\ISCC.exe"
           )
 
-          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          $compiler = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
 
-          if (-not $iscc) {
-            $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
-          }
-
-          if (-not $iscc) {
-            $iscc = Get-ChildItem "C:\Program Files*" -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue |
+          if (-not $compiler) {
+            $compiler = Get-ChildItem `
+              -Path "${env:ProgramFiles(x86)}","${env:ProgramFiles}" `
+              -Filter ISCC.exe -Recurse -ErrorAction SilentlyContinue |
               Select-Object -First 1 -ExpandProperty FullName
           }
 
-          if (-not $iscc) {
+          if (-not $compiler) {
             throw "ISCC.exe не найден после установки Inno Setup"
           }
 
-          Write-Host "Найден Inno Setup compiler: $iscc"
-          "path=$iscc" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-      - name: Verify installer inputs
-        shell: pwsh
-        run: |
-          if (!(Test-Path "setup.iss")) {
-            throw "В репозитории отсутствует setup.iss"
-          }
-          if (!(Test-Path "dist\Jarvis.exe")) {
-            throw "В репозитории отсутствует dist\Jarvis.exe"
-          }
+          "compiler=$compiler" >> $env:GITHUB_OUTPUT
+          Write-Host "Найден Inno Setup: $compiler"
 
       - name: Compile installer
         shell: pwsh
         run: |
-          & "${{ steps.inno.outputs.path }}" "/Q" "setup.iss"
-          if ($LASTEXITCODE -ne 0) {
-            throw "Inno Setup завершился с кодом $LASTEXITCODE"
-          }
+          & "${{ steps.inno.outputs.compiler }}" "setup.iss"
 
-          if (!(Test-Path "Output\JarvisSetup.exe")) {
+          if (-not (Test-Path "Output\JarvisSetup.exe")) {
             throw "Inno Setup не создал Output\JarvisSetup.exe"
           }
 
@@ -108,5 +122,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: JarvisSetup
-          path: Output/JarvisSetup.exe
-          if-no-files-found: error
+          path: Output\JarvisSetup.exe
