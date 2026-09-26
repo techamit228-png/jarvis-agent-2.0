@@ -70,14 +70,14 @@ jobs:
           UninstallDisplayName=JARVIS
 
           [Files]
-          Source="dist\Jarvis.exe"; DestDir="{app}"; Flags: ignoreversion
+          Source: "dist\Jarvis.exe"; DestDir: "{app}"; Flags: ignoreversion
 
           [Icons]
-          Name="{autoprograms}\JARVIS"; Filename="{app}\Jarvis.exe"
-          Name="{autodesktop}\JARVIS"; Filename="{app}\Jarvis.exe"
+          Name: "{autoprograms}\JARVIS"; Filename: "{app}\Jarvis.exe"
+          Name: "{autodesktop}\JARVIS"; Filename: "{app}\Jarvis.exe"
 
           [Run]
-          Filename="{app}\Jarvis.exe"; Description="Запустить JARVIS"; Flags="nowait postinstall skipifsilent"
+          Filename: "{app}\Jarvis.exe"; Description: "Запустить JARVIS"; Flags: nowait postinstall skipifsilent
           '@ | Set-Content -Path "setup.iss" -Encoding UTF8
 
           if (-not (Test-Path "setup.iss")) {
