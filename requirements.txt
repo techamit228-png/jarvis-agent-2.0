@@ -1,0 +1,10 @@
+requests
+psutil
+pyautogui
+pycaw
+comtypes
+SpeechRecognition
+pyaudio
+pyttsx3
+edge-tts
+playsound==1.2.2
